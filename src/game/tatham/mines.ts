@@ -200,10 +200,13 @@ interface Perturbation {
 type OpenCb = (tile: number) => number;
 type PerturbCb = (board: Int8Array, s: MSet | null) => Perturbation[] | null;
 
-function knownSquares(std: SquareTodo, board: Int8Array, open: OpenCb, s: MSet, mine: boolean) {
+type KnownCb = (tile: number, mine: boolean) => void;
+
+function knownSquares(std: SquareTodo, board: Int8Array, open: OpenCb, onKnown: KnownCb | undefined, s: MSet, mine: boolean) {
   for (let i = 0; i < s.n; i++) {
     const tile = s.tile[i];
     if (board[tile] === -2) {
+      onKnown?.(tile, mine);
       if (mine) board[tile] = -1;
       else {
         board[tile] = open(tile);
@@ -223,7 +226,15 @@ const shortShl = (mask: number, shift: number) => ((mask << (shift & 31)) << 16)
  * minesolve(). Returns -1 if deduction stalled, otherwise the number of
  * perturbation steps that were needed.
  */
-function minesolve(gi: Grid, n: number, board: Int8Array, open: OpenCb, perturb: PerturbCb | null, rs: RandomState): number {
+function minesolve(
+  gi: Grid,
+  n: number,
+  board: Int8Array,
+  open: OpenCb,
+  perturb: PerturbCb | null,
+  rs: RandomState,
+  onKnown?: KnownCb,
+): number {
   const { w, ntiles } = gi;
   const ss: SetStore = { n: 0, allHead: null, allTail: null, todoHead: null, todoTail: null };
   const std: SquareTodo = { next: new Int32Array(ntiles), head: -1, tail: -1 };
@@ -265,7 +276,7 @@ function minesolve(gi: Grid, n: number, board: Int8Array, open: OpenCb, perturb:
     let s = ssTodo(ss);
     if (s) {
       if (s.mines === 0 || s.mines === s.n) {
-        knownSquares(std, board, open, s, s.mines !== 0);
+        knownSquares(std, board, open, onKnown, s, s.mines !== 0);
         continue;
       }
 
@@ -276,8 +287,8 @@ function minesolve(gi: Grid, n: number, board: Int8Array, open: OpenCb, perturb:
         setWings(s, s2, wing1, wing2);
 
         if (wing1.n === s.mines - s2.mines || wing2.n === s2.mines - s.mines) {
-          knownSquares(std, board, open, wing1, wing1.n === s.mines - s2.mines);
-          knownSquares(std, board, open, wing2, wing2.n === s2.mines - s.mines);
+          knownSquares(std, board, open, onKnown, wing1, wing1.n === s.mines - s2.mines);
+          knownSquares(std, board, open, onKnown, wing2, wing2.n === s2.mines - s.mines);
           continue;
         }
 
@@ -302,7 +313,7 @@ function minesolve(gi: Grid, n: number, board: Int8Array, open: OpenCb, perturb:
       if (squaresleft === 0) break;
 
       if (minesleft === 0 || minesleft === squaresleft) {
-        for (let i = 0; i < ntiles; i++) if (board[i] === -2) knownSquares(std, board, open, single(i), minesleft !== 0);
+        for (let i = 0; i < ntiles; i++) if (board[i] === -2) knownSquares(std, board, open, onKnown, single(i), minesleft !== 0);
         continue;
       }
 
@@ -342,7 +353,7 @@ function minesolve(gi: Grid, n: number, board: Int8Array, open: OpenCb, perturb:
                     break;
                   }
                 }
-                if (outside) knownSquares(std, board, open, single(i), minesleft !== 0);
+                if (outside) knownSquares(std, board, open, onKnown, single(i), minesleft !== 0);
               }
               doneSomething = true;
               break;
@@ -638,6 +649,34 @@ export function isSolvable(w: number, h: number, mines: ArrayLike<number>, start
   const board = new Int8Array(gi.ntiles).fill(-2);
   board[start] = open(start);
   return minesolve(gi, n, board, open, null, randomNew('')) === 0;
+}
+
+const STOP = Symbol('stop');
+
+/**
+ * The first square the solver can determine from a partly played board
+ * (0..8 open, -1 known mine, -2 unknown), or null if it's stuck. `mines` is
+ * consulted only to report the numbers under squares the solver opens, which
+ * it never does before its first deduction.
+ */
+export function firstDeduction(w: number, h: number, n: number, board: Int8Array, mines: ArrayLike<number>): { tile: number; mine: boolean } | null {
+  const gi = makeGrid(w, h);
+  let found: { tile: number; mine: boolean } | null = null;
+  const open = (t: number) => {
+    if (mines[t]) return -1;
+    let c = 0;
+    for (const ni of gi.nb[t]) c += mines[ni] ? 1 : 0;
+    return c;
+  };
+  try {
+    minesolve(gi, n, board.slice(), open, null, randomNew(''), (tile, mine) => {
+      found = { tile, mine };
+      throw STOP;
+    });
+  } catch (e) {
+    if (e !== STOP) throw e;
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------

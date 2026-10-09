@@ -1,5 +1,6 @@
 import { memo, useRef, useState, type PointerEvent } from 'react';
 import { FLAG, HIDDEN, type Game } from '../game/game';
+import type { Hint } from '../game/hint';
 import { neighbourTable } from '../game/grid';
 import { FlagGlyph, MineGlyph } from './icons';
 
@@ -8,6 +9,7 @@ const MOVE_TOLERANCE = 10;
 
 interface Props {
   game: Game;
+  hint: Hint | null;
   transposed: boolean;
   cellSize: number;
   onTap: (i: number) => void;
@@ -29,7 +31,7 @@ const cellIndex = (target: EventTarget | null): number => {
   return el ? Number(el.dataset.i) : -1;
 };
 
-export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecondary }: Props) {
+export function Board({ game, hint, transposed, cellSize, onTap, onLongPress, onSecondary }: Props) {
   const { w, h, cells, status, mines, hit } = game;
   const cols = transposed ? h : w;
   const rows = transposed ? w : h;
@@ -99,6 +101,14 @@ export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecond
     return flags > v || flags + hidden < v;
   };
 
+  const marks = new Map<number, Mark>();
+  if (hint) {
+    for (const i of hint.sources) marks.set(i, 'source');
+    for (const i of hint.safe) marks.set(i, 'safe');
+    for (const i of hint.mines) marks.set(i, 'mine');
+    for (const i of hint.wrong) marks.set(i, 'wrong');
+  }
+
   const items = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -115,6 +125,7 @@ export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecond
           exploded={i === hit}
           pressed={pressedSet.has(i)}
           error={conflicts(i)}
+          mark={marks.get(i)}
         />,
       );
     }
@@ -138,6 +149,8 @@ export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecond
   );
 }
 
+type Mark = 'source' | 'safe' | 'mine' | 'wrong';
+
 interface CellProps {
   i: number;
   v: number;
@@ -146,9 +159,10 @@ interface CellProps {
   exploded: boolean;
   pressed: boolean;
   error: boolean;
+  mark?: Mark;
 }
 
-const Cell = memo(function Cell({ i, v, showMine, wrongFlag, exploded, pressed, error }: CellProps) {
+const Cell = memo(function Cell({ i, v, showMine, wrongFlag, exploded, pressed, error, mark }: CellProps) {
   let cls = 'cell';
   let content = null;
   let label: string;
@@ -171,6 +185,10 @@ const Cell = memo(function Cell({ i, v, showMine, wrongFlag, exploded, pressed, 
     cls += ` open n${v}${error ? ' error' : ''}`;
     content = v > 0 ? v : null;
     label = v > 0 ? `${v}${error ? ', flags don’t match' : ''}` : 'empty';
+  }
+  if (mark) {
+    cls += ` hint-${mark}`;
+    label += `, hint: ${mark === 'source' ? 'look here' : mark === 'wrong' ? 'wrong' : mark}`;
   }
   return (
     <div className={cls} data-i={i} role="gridcell" aria-label={label}>

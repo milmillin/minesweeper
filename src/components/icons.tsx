@@ -40,3 +40,9 @@ export const MineGlyph = (p: P) => (
     <circle cx="9.8" cy="9.8" r="1.8" fill="var(--mine-shine)" />
   </svg>
 );
+export const BulbIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M9 18h6M10 21h4" />
+    <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z" />
+  </svg>
+);

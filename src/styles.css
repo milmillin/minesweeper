@@ -299,21 +299,6 @@ button {
   --flag-pole: #fff;
 }
 
-@media (max-width: 380px) {
-  .toolbar {
-    gap: 4px;
-  }
-  .toolbar button {
-    min-width: 44px;
-  }
-  .toolbar .mode span {
-    display: none;
-  }
-  .toolbar .mode {
-    min-width: 52px;
-  }
-}
-
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -578,4 +563,84 @@ button {
   color: var(--muted);
   font-size: 0.75rem;
   margin: 6px 0 0;
+}
+
+/* --- Hints ---------------------------------------------------------------- */
+
+.cell.hint-source {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+
+.cell.hint-safe {
+  box-shadow: inset 0 0 0 3px var(--n2);
+  background: color-mix(in srgb, var(--tile) 70%, var(--n2));
+}
+
+.cell.hint-mine,
+.cell.hint-wrong {
+  box-shadow: inset 0 0 0 3px var(--flag);
+  background: color-mix(in srgb, var(--tile) 70%, var(--flag));
+}
+
+.hint-bar {
+  margin: 0 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--line);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.hint-bar p {
+  margin: 0;
+  flex: 1;
+}
+
+.hint-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hint-actions button {
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hint-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.toolbar button[aria-pressed='true']:not(.mode) {
+  background: var(--accent);
+  color: #fff;
+}
+
+@media (max-width: 480px) {
+  .toolbar {
+    gap: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .toolbar button {
+    min-width: 44px;
+  }
+  .toolbar .mode span {
+    display: none;
+  }
+  .toolbar .mode {
+    min-width: 52px;
+    padding: 0 10px;
+  }
 }

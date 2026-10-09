@@ -10,7 +10,9 @@ A mobile-friendly PWA remake of [Simon Tatham's Mines](https://www.chiark.greene
 - Haptics: Vibration API on Android; best-effort switch-haptic fallback on iOS Safari 18+
 - Installable and works offline; your game and best times are saved
 
-Keys: `U` undo · `R` redo · `N` new game · `F` flag mode.
+- Hints: the lightbulb explains the next logical step and highlights the cells involved; Apply makes the move (games with hints don't set best times)
+
+Keys: `U` undo · `R` redo · `N` new game · `F` flag mode · `H` hint.
 
 ## Develop
 

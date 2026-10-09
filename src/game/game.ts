@@ -47,6 +47,8 @@ export interface Game extends Config {
   since: number | null;
   /** Clock stopped because the page was hidden. */
   paused?: boolean;
+  /** Hints shown this game. */
+  hints?: number;
   past: Snapshot[];
   future: Snapshot[];
 }
@@ -59,6 +61,8 @@ export type Action =
   | { type: 'pause'; now: number }
   | { type: 'resume'; now: number }
   | { type: 'restart' }
+  | { type: 'hint' }
+  | { type: 'apply'; safe: number[]; mines: number[]; unflag: number[]; now: number }
   | { type: 'new'; config: Config }
   | { type: 'load'; game: Game };
 
@@ -212,6 +216,31 @@ function revealOrChord(g: Game, i: number, now: number): Game {
   };
 }
 
+/** Makes a hint's moves as one undoable step: remove wrong flags, flag mines, open safe cells. */
+function applyHint(g: Game, a: Extract<Action, { type: 'apply' }>): Game {
+  if (g.status !== 'playing' || !g.mines) return g;
+  const mines = g.mines;
+  const cells = g.cells.slice();
+  for (const i of a.unflag) if (cells[i] === FLAG) cells[i] = HIDDEN;
+  for (const i of a.mines) if (cells[i] === HIDDEN) cells[i] = FLAG;
+  const hit = open(g, mines, countAdjacent(g.w, g.h, mines), cells, a.safe.filter((i) => cells[i] === HIDDEN));
+  let status: Status = g.status;
+  if (hit >= 0) status = 'lost';
+  else if (cells.every((c, k) => c >= 0 || mines[k])) {
+    status = 'won';
+    for (let k = 0; k < cells.length; k++) if (mines[k]) cells[k] = FLAG;
+  }
+  return {
+    ...g,
+    cells,
+    status,
+    hit,
+    ...retime(g, g.status, status, a.now),
+    past: [...g.past, snapshot(g)].slice(-HISTORY_LIMIT),
+    future: [],
+  };
+}
+
 /** Cells right after the first click, whose square is recorded in the description ("9x9:x,y,m…"). */
 function openingCells(g: Game, mines: number[]): number[] {
   const cells = new Array(g.w * g.h).fill(HIDDEN);
@@ -273,6 +302,10 @@ export function reducer(g: Game, a: Action): Game {
         future: [],
       };
     }
+    case 'hint':
+      return { ...g, hints: (g.hints ?? 0) + 1 };
+    case 'apply':
+      return applyHint(g, a);
     case 'new':
       return newGame(a.config);
     case 'load':
