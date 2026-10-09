@@ -212,6 +212,14 @@ function revealOrChord(g: Game, i: number, now: number): Game {
   };
 }
 
+/** Cells right after the first click, whose square is recorded in the description ("9x9:x,y,m…"). */
+function openingCells(g: Game, mines: number[]): number[] {
+  const cells = new Array(g.w * g.h).fill(HIDDEN);
+  const m = /^\d+x\d+:(\d+),(\d+),/.exec(g.desc ?? '');
+  if (m) open(g, mines, countAdjacent(g.w, g.h, mines), cells, [Number(m[2]) * g.w + Number(m[1])]);
+  return cells;
+}
+
 function restore(g: Game, s: Snapshot, now: number): Game {
   return { ...g, cells: decode(s.cells), status: s.status, hit: s.hit, ...retime(g, g.status, s.status, now) };
 }
@@ -248,8 +256,23 @@ export function reducer(g: Game, a: Action): Game {
       return g.since === null ? g : { ...g, accum: g.accum + a.now - g.since, since: null, paused: true };
     case 'resume':
       return g.paused ? { ...g, since: g.status === 'playing' ? a.now : null, paused: false } : g;
-    case 'restart':
-      return g.mines ? { ...blankGame(g), seed: g.seed, rstate: g.rstate, desc: g.desc, mines: g.mines, status: 'playing' } : g;
+    case 'restart': {
+      // Back to the board as first opened, like the original's Restart. It's a move, so Undo reverses it.
+      if (!g.mines) return g;
+      const cells = openingCells(g, g.mines);
+      if (g.status === 'playing' && encode(cells) === encode(g.cells)) return g;
+      return {
+        ...g,
+        cells,
+        status: 'playing',
+        hit: -1,
+        accum: 0,
+        since: null,
+        paused: false,
+        past: [...g.past, snapshot(g)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }
     case 'new':
       return newGame(a.config);
     case 'load':

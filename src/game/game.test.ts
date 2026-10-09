@@ -110,6 +110,29 @@ describe('reducer', () => {
     expect(g.hit).toBe(0);
   });
 
+  test('restart reopens the first click and can be undone', () => {
+    let g = reducer(newGame(cfg, '222222222222222'), { type: 'reveal', i: 40, now: 0 });
+    const opening = g.cells;
+    const safe = g.cells.findIndex((c, i) => c === HIDDEN && !g.mines![i]);
+    g = reducer(g, { type: 'reveal', i: safe, now: 10 });
+    const mine = g.mines!.findIndex((m, i) => m && g.cells[i] === HIDDEN);
+    g = reducer(g, { type: 'reveal', i: mine, now: 20 });
+    const lost = g.cells;
+    expect(g.status).toBe('lost');
+
+    g = reducer(g, { type: 'restart' });
+    expect(g.status).toBe('playing');
+    expect(g.hit).toBe(-1);
+    expect(g.cells).toEqual(opening);
+    expect(reducer(g, { type: 'restart' })).toBe(g); // already at the start
+
+    g = reducer(g, { type: 'undo', now: 30 });
+    expect(g.status).toBe('lost');
+    expect(g.cells).toEqual(lost);
+    g = reducer(g, { type: 'redo', now: 40 });
+    expect(g.cells).toEqual(opening);
+  });
+
   test('flagged cells cannot be revealed', () => {
     let g = withMines(3, 3, [8]);
     g = reducer(g, { type: 'flag', i: 8 });

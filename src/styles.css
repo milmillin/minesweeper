@@ -212,10 +212,6 @@ button {
   background: var(--exploded);
 }
 
-.cell.flag .glyph {
-  animation: pop 160ms ease-out;
-}
-
 .cell.wrong {
   background: color-mix(in srgb, var(--tile) 70%, var(--flag));
 }
@@ -245,21 +241,6 @@ button {
 
 .flag-mode .board {
   border-color: var(--flag);
-}
-
-@keyframes pop {
-  from {
-    transform: scale(0.4);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cell.flag .glyph {
-    animation: none;
-  }
 }
 
 /* --- Toolbar -------------------------------------------------------------- */
