@@ -1,15 +1,17 @@
 export interface Preset {
-  id: string;
-  label: string;
   w: number;
   h: number;
   n: number;
 }
 
+/** The square-grid presets from Tatham's Mines. */
 export const PRESETS: Preset[] = [
-  { id: 'beginner', label: 'Beginner', w: 9, h: 9, n: 10 },
-  { id: 'intermediate', label: 'Intermediate', w: 16, h: 16, n: 40 },
-  { id: 'expert', label: 'Expert', w: 30, h: 16, n: 99 },
+  { w: 9, h: 9, n: 10 },
+  { w: 9, h: 9, n: 35 },
+  { w: 16, h: 16, n: 40 },
+  { w: 16, h: 16, n: 99 },
+  { w: 30, h: 16, n: 99 },
+  { w: 30, h: 16, n: 170 },
 ];
 
 export interface Settings {
@@ -24,12 +26,12 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = { w: 9, h: 9, n: 10, noGuess: true, haptics: true, autoRotate: true };
 
-export const LIMITS = { min: 4, maxW: 50, maxH: 50 };
+export const LIMITS = { min: 3, maxW: 50, maxH: 50 };
+
+/** Largest mine count that still leaves the 3×3 around the first click clear. */
+export const maxMines = (w: number, h: number) => Math.max(1, w * h - 9);
 
 export const bestKey = (s: { w: number; h: number; n: number; noGuess: boolean }) =>
   `${s.w}x${s.h}x${s.n}${s.noGuess ? '' : 'r'}`;
 
-export function presetLabel(s: { w: number; h: number; n: number }) {
-  const p = PRESETS.find((p) => p.w === s.w && p.h === s.h && p.n === s.n);
-  return p ? p.label : 'Custom';
-}
+export const sizeLabel = (s: { w: number; h: number; n: number }) => `${s.w}×${s.h}, ${s.n} mines`;

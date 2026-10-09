@@ -1,5 +1,6 @@
 import { memo, useRef, useState, type PointerEvent } from 'react';
 import { FLAG, HIDDEN, type Game } from '../game/game';
+import { neighbourTable } from '../game/grid';
 import { FlagGlyph, MineGlyph } from './icons';
 
 const LONG_PRESS_MS = 350;
@@ -32,7 +33,9 @@ export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecond
   const { w, h, cells, status, mines, hit } = game;
   const cols = transposed ? h : w;
   const rows = transposed ? w : h;
+  const nb = neighbourTable(w, h);
   const press = useRef<Press | null>(null);
+  /** Cell under the pointer; pressing a number presses its hidden neighbours. */
   const [pressed, setPressed] = useState(-1);
   const over = status === 'won' || status === 'lost';
 
@@ -77,6 +80,25 @@ export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecond
     if (!fired) onTap(p.i);
   };
 
+  const pressedSet = new Set<number>();
+  if (pressed >= 0 && !over) {
+    if (cells[pressed] === HIDDEN) pressedSet.add(pressed);
+    else if (cells[pressed] > 0) for (const n of nb[pressed]) if (cells[n] === HIDDEN) pressedSet.add(n);
+  }
+
+  /** A number is in error when its flags can't be right: too many, or too few cells left to flag. */
+  const conflicts = (i: number) => {
+    const v = cells[i];
+    if (v <= 0 || over) return false;
+    let flags = 0;
+    let hidden = 0;
+    for (const n of nb[i]) {
+      if (cells[n] === FLAG) flags++;
+      else if (cells[n] === HIDDEN) hidden++;
+    }
+    return flags > v || flags + hidden < v;
+  };
+
   const items = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -91,7 +113,8 @@ export function Board({ game, transposed, cellSize, onTap, onLongPress, onSecond
           showMine={status === 'lost' && isMine && v === HIDDEN}
           wrongFlag={status === 'lost' && v === FLAG && !isMine}
           exploded={i === hit}
-          pressed={pressed === i && (v === HIDDEN) && !over}
+          pressed={pressedSet.has(i)}
+          error={conflicts(i)}
         />,
       );
     }
@@ -122,9 +145,10 @@ interface CellProps {
   wrongFlag: boolean;
   exploded: boolean;
   pressed: boolean;
+  error: boolean;
 }
 
-const Cell = memo(function Cell({ i, v, showMine, wrongFlag, exploded, pressed }: CellProps) {
+const Cell = memo(function Cell({ i, v, showMine, wrongFlag, exploded, pressed, error }: CellProps) {
   let cls = 'cell';
   let content = null;
   let label: string;
@@ -144,9 +168,9 @@ const Cell = memo(function Cell({ i, v, showMine, wrongFlag, exploded, pressed }
     if (pressed) cls += ' pressed';
     label = 'hidden';
   } else {
-    cls += ` open n${v}`;
+    cls += ` open n${v}${error ? ' error' : ''}`;
     content = v > 0 ? v : null;
-    label = v > 0 ? String(v) : 'empty';
+    label = v > 0 ? `${v}${error ? ', flags don’t match' : ''}` : 'empty';
   }
   return (
     <div className={cls} data-i={i} role="gridcell" aria-label={label}>

@@ -1,16 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { FLAG, HIDDEN, newGame, reducer, type Game } from './game';
-import { generate } from './generate';
-import { solve } from './solver';
+import { FLAG, gameFromId, gameIds, HIDDEN, newGame, reducer, type Game } from './game';
+import { isSolvable } from './tatham/mines';
 
 const cfg = { w: 9, h: 9, n: 10, noGuess: true };
-
-function seeded(seed: number) {
-  return () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 2 ** 32;
-  };
-}
 
 /** Builds a game with a fixed mine layout, already started. */
 function withMines(w: number, h: number, mineList: number[]): Game {
@@ -19,45 +11,51 @@ function withMines(w: number, h: number, mineList: number[]): Game {
   return { ...newGame({ w, h, n: mineList.length, noGuess: false }), mines, status: 'playing' };
 }
 
-describe('generate', () => {
-  test('first click and neighbours are never mines', () => {
-    for (let s = 0; s < 200; s++) {
-      const rng = seeded(s);
-      const start = Math.floor(rng() * 81);
-      const m = generate(9, 9, 10, start, { noGuess: false, rng });
-      expect(m[start]).toBe(0);
-      expect(m.reduce((a, b) => a + b, 0)).toBe(10);
-    }
+describe('game IDs', () => {
+  test('a seed ID reproduces the same board', () => {
+    const a = reducer(gameFromId('16x16n40#987654321098765'), { type: 'reveal', i: 100, now: 0 });
+    const b = reducer(gameFromId('16x16n40#987654321098765'), { type: 'reveal', i: 100, now: 0 });
+    expect(a.mines).toEqual(b.mines);
+    expect(a.desc).toBe(b.desc);
+    expect(gameIds(a).seed).toBe('16x16n40#987654321098765');
   });
 
-  test.each([
-    [9, 9, 10],
-    [16, 16, 40],
-    [30, 16, 99],
-  ])('no-guess %ix%i/%i boards are solvable from the first click', (w, h, n) => {
-    for (let s = 0; s < 40; s++) {
-      const rng = seeded(s + 1);
-      const start = Math.floor(rng() * w * h);
-      const m = generate(w, h, n, start, { noGuess: true, rng });
-      expect(m.reduce((a, b) => a + b, 0)).toBe(n);
-      expect(solve(w, h, m, start).solved).toBe(true);
-    }
+  test('a description ID restores the layout with the start opened', () => {
+    const played = reducer(newGame(cfg), { type: 'reveal', i: 40, now: 0 });
+    const loaded = gameFromId(played.desc!);
+    expect(loaded.mines).toEqual(played.mines);
+    expect(loaded.cells).toEqual(played.cells);
   });
 
-  test('custom density above the 3×3 limit still places mines', () => {
-    const m = generate(4, 4, 15, 5, { noGuess: false });
-    expect(m[5]).toBe(0);
-    expect(m.reduce((a, b) => a + b, 0)).toBe(15);
+  test('an interactive description generates on first click like the seed', () => {
+    const fromSeed = gameFromId('9x9n10#111111111111111');
+    const fromState = gameFromId(gameIds(fromSeed).desc);
+    const a = reducer(fromSeed, { type: 'reveal', i: 0, now: 0 });
+    const b = reducer(fromState, { type: 'reveal', i: 0, now: 0 });
+    expect(b.mines).toEqual(a.mines);
+  });
+
+  test('bad IDs are rejected', () => {
+    expect(() => gameFromId('nonsense')).toThrow();
+    expect(() => gameFromId('9x9t2n10#1')).toThrow(/square/);
+    expect(() => gameFromId('2x2n1#1')).toThrow();
   });
 });
 
-describe('solver', () => {
-  test('cannot solve a 50/50', () => {
-    // 2×1 corridor: mine is in one of two cells next to the same number.
-    const w = 3, h = 2;
-    const mines = [0, 0, 1, 0, 0, 0];
-    // start at 0: reveals 0 (count 0) → floods 1,3,4; cells 2 and 5 both touch only 1 and 4 (counts 1)
-    expect(solve(w, h, mines, 0).solved).toBe(false);
+describe('generation', () => {
+  test.each([
+    [9, 9, 10],
+    [9, 9, 35],
+    [16, 16, 99],
+    [30, 16, 99],
+  ])('%ix%i/%i: first click opens a zero and the board is solvable', (w, h, n) => {
+    for (let k = 0; k < 10; k++) {
+      const start = (k * 37) % (w * h);
+      const g = reducer(newGame({ w, h, n, noGuess: true }, String(400000000000000 + k)), { type: 'reveal', i: start, now: 0 });
+      expect(g.cells[start]).toBe(0);
+      expect(g.mines!.reduce((a, b) => a + b, 0)).toBe(n);
+      expect(isSolvable(w, h, g.mines!, start)).toBe(true);
+    }
   });
 });
 

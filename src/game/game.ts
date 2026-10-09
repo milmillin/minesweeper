@@ -1,5 +1,14 @@
-import { generate } from './generate';
 import { countAdjacent, neighbourTable } from './grid';
+import {
+  describeLayout,
+  encodeParams,
+  generateFromState,
+  interactiveDesc,
+  newSeed,
+  parseGameId,
+  stateForSeed,
+  type Params,
+} from './tatham/mines';
 
 /** Cell display codes. 0–8 are revealed counts. */
 export const HIDDEN = -1;
@@ -23,6 +32,12 @@ interface Snapshot {
 export interface Game extends Config {
   /** 0/1 per cell; null until the first reveal. */
   mines: number[] | null;
+  /** Random seed from the game ID ("9x9n10#<seed>"), when there is one. */
+  seed: string | null;
+  /** Encoded random state the first click generates the layout from. */
+  rstate: string | null;
+  /** Full game ID once the layout exists ("9x9:4,4,m…"). */
+  desc: string | null;
   cells: number[];
   status: Status;
   /** Index of the mine that ended the game, or -1. */
@@ -44,17 +59,27 @@ export type Action =
   | { type: 'pause'; now: number }
   | { type: 'resume'; now: number }
   | { type: 'restart' }
-  | { type: 'new'; config: Config };
+  | { type: 'new'; config: Config }
+  | { type: 'load'; game: Game };
 
 const HISTORY_LIMIT = 500;
 
-export function newGame({ w, h, n, noGuess }: Config): Game {
+const params = (c: Config): Params => ({ w: c.w, h: c.h, n: c.n, unique: c.noGuess });
+
+export function newGame(config: Config, seed = newSeed()): Game {
+  return { ...blankGame(config), seed, rstate: stateForSeed(params(config), seed) };
+}
+
+function blankGame({ w, h, n, noGuess }: Config): Game {
   return {
     w,
     h,
     n,
     noGuess,
     mines: null,
+    seed: null,
+    rstate: null,
+    desc: null,
     cells: new Array(w * h).fill(HIDDEN),
     status: 'ready',
     hit: -1,
@@ -62,6 +87,33 @@ export function newGame({ w, h, n, noGuess }: Config): Game {
     since: null,
     past: [],
     future: [],
+  };
+}
+
+/** Starts a game from an ID in any of the original's formats. Throws on a bad ID. */
+export function gameFromId(id: string): Game {
+  const parsed = parseGameId(id);
+  const { w, h, n, unique } = parsed.params;
+  const config = { w, h, n, noGuess: unique };
+  switch (parsed.kind) {
+    case 'seed':
+      return newGame(config, parsed.seed);
+    case 'state':
+      return { ...blankGame(config), rstate: parsed.state };
+    case 'layout': {
+      const mines = Array.from(parsed.mines);
+      const g: Game = { ...blankGame(config), mines, status: 'playing', desc: `${w}x${h}:${describeLayout(w, h, mines, parsed.start, n)}` };
+      open(g, mines, countAdjacent(w, h, mines), g.cells, [parsed.start]);
+      return g;
+    }
+  }
+}
+
+/** The IDs that reproduce this game: by random seed, and by description. */
+export function gameIds(g: Game): { seed: string | null; desc: string } {
+  return {
+    seed: g.seed === null ? null : `${encodeParams(params(g), true)}#${g.seed}`,
+    desc: g.desc ?? `${g.w}x${g.h}:${interactiveDesc(params(g), g.rstate ?? '')}`,
   };
 }
 
@@ -110,10 +162,13 @@ function revealOrChord(g: Game, i: number, now: number): Game {
   if (g.status === 'won' || g.status === 'lost') return g;
   if (g.cells[i] === FLAG) return g;
 
-  let { mines } = g;
+  let { mines, desc, n } = g;
   let status: Status = g.status;
   if (!mines) {
-    mines = Array.from(generate(g.w, g.h, g.n, i, { noGuess: g.noGuess }));
+    const layout = generateFromState(params(g), g.rstate!, i);
+    mines = Array.from(layout.mines);
+    n = layout.nominal;
+    desc = `${g.w}x${g.h}:${describeLayout(g.w, g.h, mines, i, layout.nominal)}`;
     status = 'playing';
   }
   const adj = countAdjacent(g.w, g.h, mines);
@@ -146,6 +201,8 @@ function revealOrChord(g: Game, i: number, now: number): Game {
   return {
     ...g,
     mines,
+    desc,
+    n,
     cells,
     status,
     hit,
@@ -192,8 +249,10 @@ export function reducer(g: Game, a: Action): Game {
     case 'resume':
       return g.paused ? { ...g, since: g.status === 'playing' ? a.now : null, paused: false } : g;
     case 'restart':
-      return g.mines ? { ...newGame({ w: g.w, h: g.h, n: g.n, noGuess: g.noGuess }), mines: g.mines, status: 'playing' } : g;
+      return g.mines ? { ...blankGame(g), seed: g.seed, rstate: g.rstate, desc: g.desc, mines: g.mines, status: 'playing' } : g;
     case 'new':
       return newGame(a.config);
+    case 'load':
+      return a.game;
   }
 }

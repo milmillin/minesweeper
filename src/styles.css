@@ -16,6 +16,8 @@
   --mine: #1d1f24;
   --mine-shine: #f2f2f2;
   --exploded: #e8574f;
+  --error: #c4141b;
+  --error-bg: #f6c9c5;
   --n1: #1f5fd6;
   --n2: #23853a;
   --n3: #d3302a;
@@ -46,6 +48,8 @@
     --mine: #e6e7ea;
     --mine-shine: #24272d;
     --exploded: #b8322b;
+    --error: #ffd7d3;
+    --error-bg: #8a2a26;
     --n1: #6ea2ff;
     --n2: #5fcf7a;
     --n3: #ff6b62;
@@ -199,6 +203,11 @@ button {
   box-shadow: inset -1px -1px 0 var(--grid);
 }
 
+.cell.open.error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
 .cell.exploded {
   background: var(--exploded);
 }
@@ -334,6 +343,8 @@ button {
 .sheet {
   width: min(440px, 100vw - 24px);
   max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 0;
   border-radius: 18px;
   padding: 20px;
@@ -506,4 +517,84 @@ button {
 
 .about a {
   color: var(--accent);
+}
+
+.segmented .wide {
+  grid-column: 1 / -1;
+  align-items: center;
+}
+
+.ids {
+  border-top: 1px solid var(--line);
+  padding: 10px 0 0;
+  margin-top: 4px;
+}
+
+.ids h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.id-row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+}
+
+.id-row > span {
+  color: var(--muted);
+}
+
+.id-row code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.id-row button,
+.id-load button {
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.id-load {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.id-load input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.id-error {
+  color: var(--n3);
+  font-size: 0.8rem;
+  margin: 6px 0 0;
+}
+
+.ids .hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 6px 0 0;
 }

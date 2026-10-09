@@ -2,21 +2,36 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState }
 import { Board } from './components/Board';
 import { FlagGlyph, GearIcon, NewIcon, RedoIcon, RestartIcon, UndoIcon } from './components/icons';
 import { SettingsSheet } from './components/SettingsSheet';
-import { elapsed, FLAG, flagsPlaced, HIDDEN, newGame, reducer, type Game } from './game/game';
+import { elapsed, FLAG, flagsPlaced, gameFromId, gameIds, HIDDEN, newGame, reducer, type Game } from './game/game';
 import { useNow } from './hooks/useNow';
 import { haptic, setHapticsEnabled } from './lib/haptics';
 import { load, save } from './lib/storage';
-import { bestKey, DEFAULT_SETTINGS, presetLabel, type Settings } from './settings';
+import { bestKey, DEFAULT_SETTINGS, sizeLabel, type Settings } from './settings';
 
 const SETTINGS_KEY = 'mines.settings';
 const GAME_KEY = 'mines.game';
 const BEST_KEY = 'mines.best';
 
+/** A game ID in the URL fragment, as on Tatham's pages: mines.html#9x9n10#123… */
+function idFromUrl(): string | null {
+  const id = decodeURIComponent(location.hash.slice(1));
+  return id ? id : null;
+}
+
 function initialGame(settings: Settings): Game {
+  const fromUrl = idFromUrl();
+  if (fromUrl) {
+    try {
+      return gameFromId(fromUrl);
+    } catch {
+      /* fall through to the saved game */
+    }
+  }
   const fresh = newGame(settings);
   const saved = load<Game | null>(GAME_KEY, null as never);
   const valid =
     saved &&
+    (saved.mines !== null || typeof saved.rstate === 'string') &&
     saved.w === settings.w &&
     saved.h === settings.h &&
     saved.n === settings.n &&
@@ -36,6 +51,14 @@ const formatTime = (ms: number) => {
 export default function App() {
   const [settings, setSettings] = useState<Settings>(() => load(SETTINGS_KEY, DEFAULT_SETTINGS));
   const [game, dispatch] = useReducer(reducer, settings, initialGame);
+
+  // A game loaded from the URL also sets the size for later games; then drop the fragment.
+  useEffect(() => {
+    if (!idFromUrl()) return;
+    setSettings((s) => ({ ...s, w: game.w, h: game.h, n: game.n, noGuess: game.noGuess }));
+    history.replaceState(null, '', location.pathname + location.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [best, setBest] = useState<Record<string, number>>(() => load(BEST_KEY, {}));
   const [newBest, setNewBest] = useState(false);
   const [flagMode, setFlagMode] = useState(false);
@@ -157,10 +180,10 @@ export default function App() {
   let message: string;
   switch (game.status) {
     case 'ready':
-      message = `${presetLabel(game)} · tap anywhere to start`;
+      message = `${sizeLabel(game)} · tap to start`;
       break;
     case 'playing':
-      message = `${presetLabel(game)} · ${game.w}×${game.h}${game.noGuess ? '' : ' · may need guessing'}`;
+      message = `${sizeLabel(game)}${game.noGuess ? '' : ' · may need guessing'}`;
       break;
     case 'won':
       message = newBest ? 'Cleared — new best!' : `Cleared${record !== undefined ? ` · best ${formatTime(record)}` : ''}`;
@@ -223,7 +246,19 @@ export default function App() {
       <SettingsSheet
         open={sheetOpen}
         settings={settings}
+        ids={gameIds(game)}
         onClose={() => setSheetOpen(false)}
+        onLoadId={(id) => {
+          try {
+            const g = gameFromId(id);
+            dispatch({ type: 'load', game: g });
+            setSettings((s) => ({ ...s, w: g.w, h: g.h, n: g.n, noGuess: g.noGuess }));
+            setSheetOpen(false);
+            return null;
+          } catch (e) {
+            return e instanceof Error ? e.message : 'Invalid game ID';
+          }
+        }}
         onApply={(s, restart) => {
           setSettings(s);
           setSheetOpen(false);
